@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import json
+import pymongo
 
 def load_dataset():
     """
@@ -68,8 +69,35 @@ def parse_relevant_data(data):
         
     return relevant_data
 
+def storeData(data_frame):
+    """
+        Stores the data in a MongoDB database.
+    """
+    
+    # Create a local database
+    client = pymongo.MongoClient("mongodb://localhost:27017/")
+    db = client["games_database"]
+    collection = db["games"]
+    
+    # If the database exists, create it. Otherwise, leave it alone    
+    if "games" in client.list_database_names():
+        print("The database exists.")
+    else:
+        data_dict = data_frame.to_dict(orient='records')
+        
+        collection.insert_many(data_dict)
+        
+        print("mongodb thing: ", client.list_database_names())
+        
+    client.close()
+    
+
 def main():
-    load_dataset()
+    data = load_dataset()
+    
+    storeData(data)
+    
+    print(data.head())
 
 if __name__ == "__main__":
         main()
