@@ -27,14 +27,16 @@ def load_dataset_into_mongodb(json_file, client_url, db_name, collection_name):
     db = client[db_name]
     collection = db[collection_name]
     
+    print("Database Names: ", client.list_database_names())
+    print("games_database collection Names: ", db.list_collection_names())
+    
     # If the database exists, create it. Otherwise, leave it alone    
-    if collection_name in client.list_database_names():
-        print("The database exists.")
+    if collection.count_documents({}) > 0:
+        print("The collection already has data.")
     else:
         collection.insert_many(relevant_data)
-        
-        print("mongodb thing: ", client.list_database_names())
-        
+        print("The collection was populated with data.")
+    
     client.close()
 
 def parse_relevant_data(data):
@@ -46,8 +48,7 @@ def parse_relevant_data(data):
         
         Returns:
         list: A list of dictionaries containing the relevant data.
-    """
-    
+    """    
     relevant_data = []
     
     for game in data:
@@ -84,12 +85,11 @@ def parse_relevant_data(data):
             'median_playtime_forever': game_data['median_playtime_forever'],
             'median_playtime_2weeks': game_data['median_playtime_2weeks'],
             'peak_ccu': game_data['peak_ccu'],
-            'tags': game_data['tags'] 
         })
         
     return relevant_data
 
-def pull_collection_from_mongodb(client_url, db_name, collection_name):
+def pull_dataframe_from_mongodb(client_url, db_name, collection_name):
     """
     Pulls the collection from the MongoDB database and returns it as a DataFrame.
 
@@ -101,33 +101,40 @@ def pull_collection_from_mongodb(client_url, db_name, collection_name):
     Returns:
         _type_: _description_
     """
-    
     # Access the local database
     client = pymongo.MongoClient(client_url)
     db = client[db_name]
     collection = db[collection_name]
     
-    # If the database exists, pull the document  
-    if collection_name in client.list_database_names():
-        document = db.games
+    # If the database exists, pull the collection. Otherwise, leave it alone
+    if collection_name in db.list_collection_names():
+        print("The collection exists.")
+        collection_data = collection.find()
     else:
-        document = None
-        
+        print("The collection does not exist.")
+        collection_data = None
+    
+    # Convert the collection data to a DataFrame
+    df = pd.DataFrame(list(collection_data))
+    
+    # Drop the '_id' column if it exists
+    if '_id' in df.columns:
+        df.drop(columns=['_id'], inplace=True)
+    
     client.close()
     
-    return document
-
+    return df
 
 def main():
     DATA_FILE = "games.json"
     CLIENT_URL = "mongodb://localhost:27017/"
     DB_NAME = "games_database"
     COLLECTION_NAME = "games"
-    
+
     # Load the dataset into MongoDB
     load_dataset_into_mongodb(DATA_FILE, CLIENT_URL, DB_NAME, COLLECTION_NAME)
     
-    data = pd.DataFrame(pull_collection_from_mongodb(CLIENT_URL, DB_NAME, COLLECTION_NAME))
+    data = pull_dataframe_from_mongodb(CLIENT_URL, DB_NAME, COLLECTION_NAME)
     
     # Process Data Here
     print(data.head())
